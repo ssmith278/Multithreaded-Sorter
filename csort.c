@@ -4,12 +4,15 @@
 #include <string.h>
 #include <time.h>
 
+void parseArgs(int argc, char *argv[], int *n, int *t, int *debugOn);
+void spawnAndSortRandom(int n, int t, int debugOn);
+void spawnAndSort(int n, int t, int debugOn, double *dArr);
 void getUnsortedArray(int n, double *pArr);
 void *sortArray(void *arg);
 void *mergeArrays(void *arg);
 void printArray(int n, double *pArr);
 
-#define DEBUG 0
+#define DEBUG 1
 
 typedef struct Sortable{
 
@@ -29,31 +32,65 @@ typedef struct Mergable{
  *  using insertion sort. T is 1 by default but can be set by inputting a second integer
  *  command line argument
  */
-int main(int argc, void *argv[])
+int main(int argc, char *argv[])
 {
-    int i;
-    int n = atoi(argv[1]);
-    int t;
-    struct timespec start, end;
-    double elapsed;
+    int *n = (int*)malloc(sizeof(int));
+    int *t = (int*)malloc(sizeof(int));
+    int *debugOn = (int*)malloc(sizeof(int));
+
+    parseArgs(argc, argv, n, t, debugOn);
+
+    if(*debugOn)
+    {
+
+        printf("Running with the following values: \n\tN: %d \n\tT: %d \n", *n, *t);
+    }
+
+    spawnAndSortRandom(*n, *t, *debugOn);
+
+    free(n);
+    free(t);
+    free(debugOn);
+    exit(EXIT_SUCCESS);
+}
+
+void parseArgs(int argc, char *argv[], int *n, int *t, int *debugOn)
+{
+    if (argc > 3)
+    {
+        *debugOn = atoi(argv[3]);
+    }
 
     if (argc > 2)
     {
-        t = atoi(argv[2]);
-        if(t == 0 || n % t != 0)
-        {
-            fprintf(stderr, "Invalid N/T combination: %d/%d.\n"
-                    "Please enter a combination where T is NOT 0 and N is divisible by T\n",
-                    n, t);
-            exit(EXIT_FAILURE);
-        }
+        *n = atoi(argv[1]);
+        *t = atoi(argv[2]);
+    }
+    else if (argc > 1)
+    {
+        fprintf(stderr, "No second argument provided. T will default to 1 thread.\n");
+        *n = atoi(argv[1]);        
+        *t = 1;
     }
     else
     {
-        t = 1;
+        fprintf(stderr, "No arguments provided.\nUsage: csort <list length> [number of threads]\n");
+        exit(EXIT_FAILURE);    
     }
 
+    if(*t == 0 || *n % *t != 0)
+    {
+        fprintf(stderr, "Invalid N/T combination: %d/%d.\n"
+                "Please enter a combination where T is NOT 0 and N is divisible by T\n",
+                *n, *t);
+        exit(EXIT_FAILURE);
+    }
+}
+
+void spawnAndSortRandom(int n, int t, int debugOn)
+{    
     Sortable *arr = (Sortable*)malloc(sizeof(Sortable));
+
     if(arr == NULL)
     {
         fprintf(stderr, "Failed to malloc Sortable");
@@ -68,11 +105,23 @@ int main(int argc, void *argv[])
     arr->n = n;
  
     getUnsortedArray(n, arr->dArr);
+
+    spawnAndSort(n, t, debugOn, arr->dArr);
+
+    free(arr->dArr);
+    free(arr);  
+}
+
+void spawnAndSort(int n, int t, int debugOn, double *dArr)
+{    
+    int i;
+    struct timespec start, end;
+    double elapsed;
     
-    if(DEBUG)
+    if(debugOn)
     {
         printf("Unsorted array: \n");
-        printArray(n, arr->dArr);
+        printArray(n, dArr);
     }
 
     //Split the arrays
@@ -80,7 +129,7 @@ int main(int argc, void *argv[])
     for(i = 0; i < t; i++)
     {
         slices[i].n = n/t;
-        slices[i].dArr = arr->dArr+(n/t)*i;
+        slices[i].dArr = dArr+(n/t)*i;
     }
 
     //Time the sorting
@@ -107,21 +156,23 @@ int main(int argc, void *argv[])
     
     clock_gettime(CLOCK_MONOTONIC, &end);
     
-    if(DEBUG)
+    if(debugOn)
     {
         printf("Sorted array: \n");
-        printArray(n, ((Sortable*)result)->dArr);
+        printArray(n, dArr);
     }
 
     elapsed = (end.tv_sec - start.tv_sec) * 1000.0;
     elapsed += (end.tv_nsec - start.tv_nsec) / 1000000.0;
     printf("\nExecution time: %f ms\n", elapsed);
 
+    for(i = 0; i < n; i++)
+    {
+        dArr[i] = result->dArr[i];
+    }
+
     free(result->dArr);
     free(result);
-    free(arr->dArr);
-    free(arr);
-    exit(EXIT_SUCCESS);
 }
 
 void getUnsortedArray(int n, double *pArr)
